@@ -2,7 +2,7 @@ from loguru import logger
 import requests
 import bs4
 
-from models import Game
+from src.models import Game
 
 
 TARGET_URL = "https://store.steampowered.com/search/?maxprice=free&specials=1&cc=RU"

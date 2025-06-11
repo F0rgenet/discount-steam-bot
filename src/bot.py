@@ -1,6 +1,4 @@
-import re
 import os
-from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters.command import Command
