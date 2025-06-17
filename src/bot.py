@@ -1,4 +1,5 @@
 import os
+from typing import List
 
 from aiogram import Bot, Dispatcher
 from aiogram.filters.command import Command
@@ -9,8 +10,25 @@ from dotenv import load_dotenv
 
 from src.parser import get_free_games
 from src.models import Game
+from src.cache import get_subscribers, add_subscriber
 
 load_dotenv()
+
+def get_games_message(games: List[Game]):
+    if not games:
+        return "На данный момент нет бесплатных игр по скидкам :<"
+    result_message_parts = ["Вот список бесплатных игр в Steam:\n"]
+    for game in games:
+        game_info = (
+            f"<b>{game.name}</b>\n"
+            f"<s>{game.original_price} ₽</s> {game.current_price} ₽\n"
+            f"Скидка {game.discount}%\n"
+            f"<a href='{game.url}'>Забрать</a>\n"
+        )
+        result_message_parts.append(game_info)
+    
+    full_result_message = "\n".join(result_message_parts)
+    return full_result_message
 
 bot = Bot(token=os.environ["TELEGRAM_BOT_TOKEN"])
 
@@ -29,7 +47,7 @@ async def start(message: Message):
     logger.info(f"Пользователь {message.from_user.username} запустил бота!")
     await message.reply(
         "Для поиска скидок используйте `/free`\n" \
-        "Подробнее о боте можно узнать в разделе README.md на [GitHub](https://github.com/f0rgenet/discount-steam-bot/README.md)",
+        "Подробнее о боте можно узнать в [GitHub](https://github.com/F0rgenet/discount-steam-bot/)",
         parse_mode="Markdown"
     )
 
@@ -37,26 +55,23 @@ async def start(message: Message):
 async def free(message: Message):
     logger.info(f"Пользователь {message.from_user.username} начал поиск скидок в Steam...")
     await message.reply("Поиск скидок в Steam...")
-    games: list[Game] = get_free_games()
+    games: list[Game] = await get_free_games()
     
-    if not games:
-        await message.reply("К сожалению, сейчас нет бесплатных игр или скидок не найдено.")
-        logger.info(f"Для пользователя {message.from_user.username} не найдено скидок.")
-        return
-
-    result_message_parts = ["Вот список бесплатных игр и игр со скидками в Steam:\n"]
-    for game in games:
-        game_info = (
-            f"<b>{game.name}</b>\n"
-            f"<s>{game.original_price} ₽</s> {game.current_price} ₽\n"
-            f"Скидка {game.discount}%\n"
-            f"<a href='{game.url}'>Забрать</a>\n"
-        )
-        result_message_parts.append(game_info)
-    
-    full_result_message = "\n".join(result_message_parts)
-    await message.reply(full_result_message, parse_mode="html")
+    await message.reply(get_games_message(games), parse_mode="html")
     logger.success(f"Пользователь {message.from_user.username} завершил поиск скидок в Steam!")
+
+
+@dp.message(Command("subscribe"))
+async def subscribe(message: Message):
+    if message.from_user.id in await get_subscribers():
+        await message.reply("Вы уже подписаны на уведомления о скидках!")
+        return
+    await add_subscriber(message.from_user.id)
+    await message.reply("Вы успешно подписаны на уведомления о скидках!")
+
+async def send_notifications(games: List[Game]):
+    for subscriber in await get_subscribers():
+        await bot.send_message(subscriber, get_games_message(games))
 
 async def run():
     try:
